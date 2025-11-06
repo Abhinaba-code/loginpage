@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -6,7 +5,6 @@ import {
   useState,
   useEffect,
   ReactNode,
-  useContext,
   useMemo,
 } from "react";
 import {
@@ -28,7 +26,17 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
-import { firebaseConfig } from '@/lib/firebaseConfig';
+
+// This is now the single source of truth for Firebase configuration.
+const firebaseConfig = {
+  apiKey: "AIzaSyCp7-xal4Uc77Men4tKoNLYeHUDL-Z1dKc",
+  authDomain: "authflow-6006b.firebaseapp.com",
+  projectId: "authflow-6006b",
+  storageBucket: "authflow-6006b.appspot.com",
+  messagingSenderId: "444782156299",
+  appId: "1:444782156299:web:b8b2900f39da8199ce450e",
+  measurementId: "G-QDB7F6YXJ2"
+};
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -50,7 +58,6 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isClient, setIsClient] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -69,27 +76,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
   
   useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', user: FirebaseUser) => {
-    try {
-      await addDoc(collection(db, "auth_logs"), {
-        userId: user.uid,
-        email: user.email,
-        action,
-        method,
-        timestamp: serverTimestamp(),
-      });
-    } catch (error) {
-      console.error("Error logging auth event:", error);
-    }
-  };
-
-  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      setLoading(false);
+      if (currentUser === null) {
+        // Only set loading to false for non-authed users after initial check
+        setLoading(false);
+      }
     });
 
     const handleRedirectResult = async () => {
@@ -116,6 +108,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             handleAuthError(error);
         }
       } finally {
+        // This is the primary loading gate. It ensures we don't render children until redirect is handled.
         setLoading(false);
       }
     };
@@ -124,6 +117,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     return () => unsubscribe();
   }, [auth, db]);
+
+  const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', user: FirebaseUser) => {
+    try {
+      await addDoc(collection(db, "auth_logs"), {
+        userId: user.uid,
+        email: user.email,
+        action,
+        method,
+        timestamp: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Error logging auth event:", error);
+    }
+  };
 
   const handleAuthSuccess = (path: string) => {
     router.push(path);
@@ -206,7 +213,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     db,
   };
 
-  if (!isClient || loading) {
+  if (loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <LoadingSpinner />
