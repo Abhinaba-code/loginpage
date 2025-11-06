@@ -5,7 +5,6 @@ import {
   useState,
   useEffect,
   ReactNode,
-  useMemo,
 } from "react";
 import {
   onAuthStateChanged,
@@ -39,17 +38,19 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase app singleton
-const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth: Auth = getAuth(app);
-const db: Firestore = getFirestore(app);
+function getFirebaseServices() {
+  const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  const auth: Auth = getAuth(app);
+  const db: Firestore = getFirestore(app);
 
-// Initialize Analytics if supported
-if (typeof window !== 'undefined') {
-  isSupported().then(supported => {
-    if (supported) {
-      getAnalytics(app);
-    }
-  });
+  if (typeof window !== 'undefined') {
+    isSupported().then(supported => {
+      if (supported) {
+        getAnalytics(app);
+      }
+    });
+  }
+  return { app, auth, db };
 }
 
 interface AuthContextType {
@@ -59,8 +60,6 @@ interface AuthContextType {
   signup: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   googleSignIn: () => Promise<void>;
-  auth: Auth;
-  db: Firestore;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -76,12 +75,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { toast } = useToast();
   
   useEffect(() => {
-    setLoading(true); // Start loading when checking auth state
+    const { auth, db } = getFirebaseServices();
+    setLoading(true);
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      if (currentUser === null) {
-        setLoading(false);
-      }
+      setLoading(false);
     });
 
     const handleRedirectResult = async () => {
@@ -100,7 +98,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               createdAt: serverTimestamp(),
             });
           }
-          await logAuthEvent('login', 'google', googleUser);
+          await logAuthEvent('login', 'google', googleUser, db);
           handleAuthSuccess("/");
         }
       } catch (error: any) {
@@ -108,16 +106,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             handleAuthError(error);
         }
       } finally {
-        setLoading(false);
+        if (user === null) {
+            setLoading(false);
+        }
       }
     };
 
     handleRedirectResult();
 
     return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', loggedInUser: FirebaseUser) => {
+  const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', loggedInUser: FirebaseUser, db: Firestore) => {
     try {
       await addDoc(collection(db, "auth_logs"), {
         userId: loggedInUser.uid,
@@ -145,10 +146,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const login = async (email: string, pass: string) => {
+    const { auth, db } = getFirebaseServices();
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-      await logAuthEvent('login', 'email', userCredential.user);
+      await logAuthEvent('login', 'email', userCredential.user, db);
       handleAuthSuccess("/");
     } catch (error) {
       handleAuthError(error);
@@ -158,6 +160,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signup = async (email: string, pass: string) => {
+    const { auth, db } = getFirebaseServices();
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
@@ -169,7 +172,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         photoURL: null,
         createdAt: serverTimestamp(),
       });
-      await logAuthEvent('login', 'email', newUser);
+      await logAuthEvent('login', 'email', newUser, db);
       handleAuthSuccess("/");
     } catch (error) {
       handleAuthError(error);
@@ -179,6 +182,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const googleSignIn = async () => {
+    const { auth } = getFirebaseServices();
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
@@ -190,9 +194,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const logout = async () => {
+    const { auth, db } = getFirebaseServices();
     try {
       if (auth.currentUser) {
-        await logAuthEvent('logout', 'unknown', auth.currentUser);
+        await logAuthEvent('logout', 'unknown', auth.currentUser, db);
       }
       await signOut(auth);
       router.push("/login");
@@ -208,8 +213,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signup,
     logout,
     googleSignIn,
-    auth,
-    db,
   };
 
   if (loading) {
