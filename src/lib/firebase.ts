@@ -14,12 +14,12 @@ const firebaseConfig = {
   measurementId: "G-QDB7F6YXJ2"
 };
 
-// Initialize Firebase for SSR
+// Initialize Firebase for SSR and client-side
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Initialize Firebase Analytics
+// Initialize Firebase Analytics on the client
 if (typeof window !== 'undefined') {
   isSupported().then((supported) => {
     if (supported) {

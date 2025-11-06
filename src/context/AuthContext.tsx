@@ -57,13 +57,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
       setLoading(false);
     });
 
-    getRedirectResult(auth)
-      .then(async (result) => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
         if (result) {
           const googleUser = result.user;
           const userDocRef = doc(db, "users", googleUser.uid);
@@ -80,15 +81,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           await logAuthEvent('login', 'google', googleUser);
           handleAuthSuccess("/");
         }
-      })
-      .catch((error) => {
-        if(error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment') {
+      } catch (error: any) {
+        // Ignore non-blocking errors, but log and toast others
+        if(error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment' && error.code !== 'auth/cancelled-popup-request') {
             handleAuthError(error);
         }
-      })
-      .finally(() => {
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    handleRedirectResult();
 
     return () => unsubscribe();
   }, []);
@@ -98,7 +101,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const handleAuthError = (error: any) => {
-    console.error(error);
+    console.error("Firebase Auth Error:", error);
     toast({
       variant: "destructive",
       title: "Authentication Error",
@@ -107,8 +110,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const login = async (email: string, pass: string) => {
+    setLoading(true);
     try {
-      setLoading(true);
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       await logAuthEvent('login', 'email', userCredential.user);
       handleAuthSuccess("/");
@@ -120,8 +123,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signup = async (email: string, pass: string) => {
+    setLoading(true);
     try {
-      setLoading(true);
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const newUser = userCredential.user;
       await setDoc(doc(db, "users", newUser.uid), {
@@ -141,9 +144,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const googleSignIn = async () => {
+    setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      setLoading(true);
       await signInWithRedirect(auth, provider);
     } catch (error) {
       handleAuthError(error);
@@ -172,5 +175,5 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     googleSignIn,
   };
 
-  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
