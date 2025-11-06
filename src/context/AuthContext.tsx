@@ -275,13 +275,5 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     verifyOtp,
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        {/* You can replace this with a more sophisticated loading spinner or skeleton screen */}
-      </div>
-    );
-  }
-
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
