@@ -6,6 +6,8 @@ import {
   useState,
   useEffect,
   ReactNode,
+  useContext,
+  useMemo,
 } from "react";
 import {
   onAuthStateChanged,
@@ -16,12 +18,17 @@ import {
   GoogleAuthProvider,
   signInWithRedirect,
   getRedirectResult,
+  Auth,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from "firebase/firestore";
-import { useFirebase } from "@/context/FirebaseProvider";
+import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc, Firestore } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getAnalytics, isSupported } from 'firebase/analytics';
+import { firebaseConfig } from '@/lib/firebaseConfig';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -30,6 +37,8 @@ interface AuthContextType {
   signup: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   googleSignIn: () => Promise<void>;
+  auth: Auth;
+  db: Firestore;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,13 +48,26 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const { auth, db } = useFirebase();
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
+  const { app, auth, db } = useMemo(() => {
+    const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    if (typeof window !== 'undefined') {
+      isSupported().then(supported => {
+        if (supported) {
+          getAnalytics(app);
+        }
+      });
+    }
+    return { app, auth, db };
+  }, []);
+  
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -180,6 +202,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signup,
     logout,
     googleSignIn,
+    auth,
+    db,
   };
 
   if (!isClient || loading) {
