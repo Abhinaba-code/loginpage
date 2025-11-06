@@ -84,9 +84,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      if (loading) {
-        setLoading(false);
-      }
+      setLoading(false);
     });
 
     const handleRedirectResult = async () => {
@@ -197,6 +195,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
+      // Adding a small delay to ensure config is loaded, as a safeguard.
+      await new Promise(resolve => setTimeout(resolve, 100));
       await signInWithRedirect(auth, provider);
     } catch (error) {
       handleAuthError(error);
@@ -207,8 +207,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const sendOtp = async (email: string) => {
     setLoading(true);
     try {
-        await sendOtpFlow({ email });
-        return true;
+        const result = await sendOtpFlow({ email });
+        if (result.success) {
+          toast({
+            title: "OTP Sent (Dev Mode)",
+            description: `Your one-time password is: ${result.otp}`,
+            duration: 10000,
+          });
+        }
+        return result.success;
     } catch (error) {
         handleAuthError(error);
         return false;
@@ -274,6 +281,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     sendOtp,
     verifyOtp,
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

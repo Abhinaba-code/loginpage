@@ -9,7 +9,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { initializeApp, getApps, getApp } from 'firebase-admin/app';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 
 // In-memory store for OTPs. In a production app, use Firestore or Redis.
@@ -18,6 +18,12 @@ const otpStore: Record<string, { code: string; expires: number; attempts: number
 const SendOtpInputSchema = z.object({
   email: z.string().email().describe('The email address to send the OTP to.'),
 });
+
+const SendOtpOutputSchema = z.object({
+    success: z.boolean(),
+    otp: z.string().optional().describe("The OTP code, returned for dev/testing purposes."),
+});
+
 
 const VerifyOtpInputSchema = z.object({
   email: z.string().email().describe('The user\'s email address.'),
@@ -70,7 +76,7 @@ export const sendOtpFlow = ai.defineFlow(
   {
     name: 'sendOtpFlow',
     inputSchema: SendOtpInputSchema,
-    outputSchema: z.object({ success: z.boolean() }),
+    outputSchema: SendOtpOutputSchema,
   },
   async ({ email }) => {
     const otp = generateOtp();
@@ -89,8 +95,11 @@ export const sendOtpFlow = ai.defineFlow(
     if (!result.success) {
         throw new Error('Failed to send OTP email.');
     }
-
-    return { success: true };
+    
+    // For development, we return the OTP to be displayed in the UI.
+    // In production, this should be removed.
+    const isDev = process.env.NODE_ENV === 'development';
+    return { success: true, otp: isDev ? otp : undefined };
   }
 );
 
