@@ -21,7 +21,7 @@ export default function LandingPage() {
             </Button>
             <Button asChild>
               <Link href="/signup">
-                Get Started <ArrowRight className="ml-2 h-4 w-4" />
+                Sign Up <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
           </nav>
