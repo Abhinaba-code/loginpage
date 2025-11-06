@@ -13,7 +13,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -46,6 +47,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(user);
       setLoading(false);
     });
+
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result) {
+          const googleUser = result.user;
+          const userDocRef = doc(db, "users", googleUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (!userDoc.exists()) {
+            await setDoc(userDocRef, {
+              uid: googleUser.uid,
+              email: googleUser.email,
+              displayName: googleUser.displayName,
+              photoURL: googleUser.photoURL,
+              createdAt: serverTimestamp(),
+            });
+          }
+          handleAuthSuccess("/");
+        }
+      })
+      .catch((error) => {
+        if(error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment') {
+            handleAuthError(error);
+        }
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+
     return () => unsubscribe();
   }, []);
 
@@ -64,15 +93,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const login = async (email: string, pass: string) => {
     try {
+      setLoading(true);
       await signInWithEmailAndPassword(auth, email, pass);
       handleAuthSuccess("/");
     } catch (error) {
       handleAuthError(error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const signup = async (email: string, pass: string) => {
     try {
+      setLoading(true);
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const newUser = userCredential.user;
       await setDoc(doc(db, "users", newUser.uid), {
@@ -85,28 +118,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       handleAuthSuccess("/");
     } catch (error) {
       handleAuthError(error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const googleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      const googleUser = result.user;
-      const userDocRef = doc(db, "users", googleUser.uid);
-      const userDoc = await getDoc(userDocRef);
-      if (!userDoc.exists()) {
-        await setDoc(userDocRef, {
-          uid: googleUser.uid,
-          email: googleUser.email,
-          displayName: googleUser.displayName,
-          photoURL: googleUser.photoURL,
-          createdAt: serverTimestamp(),
-        });
-      }
-      handleAuthSuccess("/");
+      setLoading(true);
+      await signInWithRedirect(auth, provider);
     } catch (error) {
       handleAuthError(error);
+      setLoading(false);
     }
   };
 
@@ -128,5 +152,5 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     googleSignIn,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
 };
