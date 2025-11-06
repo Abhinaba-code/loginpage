@@ -19,10 +19,9 @@ import {
   Auth,
   signInWithCustomToken,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc, Firestore, query, where, getDocs, limit } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc, Firestore } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
@@ -194,8 +193,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const googleSignIn = async () => {
-    setLoading(true);
     const { auth } = getFirebaseServices();
+    setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
       await signInWithRedirect(auth, provider);
@@ -222,7 +221,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setLoading(true);
     const { auth, db } = getFirebaseServices();
     try {
-        const { token } = await verifyOtpFlow({ email, otp });
+        const { token, error } = await verifyOtpFlow({ email, otp });
         if (token) {
             const userCredential = await signInWithCustomToken(auth, token);
             const otpUser = userCredential.user;
@@ -242,7 +241,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             await logAuthEvent('login', 'otp', otpUser, db);
             handleAuthSuccess('/dashboard');
         } else {
-            throw new Error("Invalid OTP or expired token.");
+            throw new Error(error || "Invalid OTP or expired token.");
         }
     } catch (error: any) {
         handleAuthError(error);
@@ -275,6 +274,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     sendOtp,
     verifyOtp,
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        {/* You can replace this with a more sophisticated loading spinner or skeleton screen */}
+      </div>
+    );
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
