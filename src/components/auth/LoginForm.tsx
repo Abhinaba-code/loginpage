@@ -66,6 +66,9 @@ export function LoginForm() {
     defaultValues: { email: "" },
   });
 
+  // A dummy form for the OTP input to provide context
+  const dummyForm = useForm();
+
   async function onPasswordSubmit(values: z.infer<typeof passwordFormSchema>) {
     await login(values.email, values.password);
   }
@@ -162,24 +165,26 @@ export function LoginForm() {
                 </form>
               </Form>
             ) : (
-              <div className="space-y-4 pt-4">
-                  <FormItem>
-                    <FormLabel>One-Time Password</FormLabel>
-                    <FormControl>
-                       <Input 
-                          placeholder="123456" 
-                          value={otp}
-                          onChange={(e) => setOtp(e.target.value)}
-                        />
-                    </FormControl>
-                  </FormItem>
-                <Button onClick={handleOtpVerify} className="w-full" disabled={loading}>
-                  {loading ? "Verifying..." : "Verify & Sign In"}
-                </Button>
-                 <Button variant="link" size="sm" onClick={() => setOtpSent(false)} className="w-full">
-                  Use a different email
-                </Button>
-              </div>
+              <Form {...dummyForm}>
+                <div className="space-y-4 pt-4">
+                    <FormItem>
+                      <FormLabel>One-Time Password</FormLabel>
+                      <FormControl>
+                         <Input 
+                            placeholder="123456" 
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value)}
+                          />
+                      </FormControl>
+                    </FormItem>
+                  <Button onClick={handleOtpVerify} className="w-full" disabled={loading}>
+                    {loading ? "Verifying..." : "Verify & Sign In"}
+                  </Button>
+                   <Button variant="link" size="sm" onClick={() => setOtpSent(false)} className="w-full">
+                    Use a different email
+                  </Button>
+                </div>
+              </Form>
             )}
           </TabsContent>
         </Tabs>
