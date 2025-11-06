@@ -38,6 +38,20 @@ const firebaseConfig = {
   measurementId: "G-QDB7F6YXJ2"
 };
 
+// Initialize Firebase app singleton
+const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const auth: Auth = getAuth(app);
+const db: Firestore = getFirestore(app);
+
+// Initialize Analytics if supported
+if (typeof window !== 'undefined') {
+  isSupported().then(supported => {
+    if (supported) {
+      getAnalytics(app);
+    }
+  });
+}
+
 interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
@@ -60,26 +74,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
-
-  const { app, auth, db } = useMemo(() => {
-    const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    if (typeof window !== 'undefined') {
-      isSupported().then(supported => {
-        if (supported) {
-          getAnalytics(app);
-        }
-      });
-    }
-    return { app, auth, db };
-  }, []);
   
   useEffect(() => {
+    setLoading(true); // Start loading when checking auth state
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser === null) {
-        // Only set loading to false for non-authed users after initial check
         setLoading(false);
       }
     });
@@ -108,7 +108,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             handleAuthError(error);
         }
       } finally {
-        // This is the primary loading gate. It ensures we don't render children until redirect is handled.
         setLoading(false);
       }
     };
@@ -116,13 +115,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     handleRedirectResult();
 
     return () => unsubscribe();
-  }, [auth, db]);
+  }, []);
 
-  const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', user: FirebaseUser) => {
+  const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', loggedInUser: FirebaseUser) => {
     try {
       await addDoc(collection(db, "auth_logs"), {
-        userId: user.uid,
-        email: user.email,
+        userId: loggedInUser.uid,
+        email: loggedInUser.email,
         action,
         method,
         timestamp: serverTimestamp(),
