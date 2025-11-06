@@ -17,8 +17,9 @@ import {
   signInWithRedirect,
   getRedirectResult,
   Auth,
+  signInWithCustomToken,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc, Firestore } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc, Firestore, query, where, getDocs, limit } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -26,6 +27,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
+import { sendOtpFlow, verifyOtpFlow } from "@/ai/flows/send-otp-flow";
 
 // This is now the single source of truth for Firebase configuration.
 const firebaseConfig = {
@@ -38,7 +40,6 @@ const firebaseConfig = {
   measurementId: "G-QDB7F6YXJ2"
 };
 
-// Initialize Firebase app singleton
 // This function ensures Firebase is initialized only once.
 function getFirebaseServices() {
   const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -62,6 +63,8 @@ interface AuthContextType {
   signup: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   googleSignIn: () => Promise<void>;
+  sendOtp: (email: string) => Promise<boolean>;
+  verifyOtp: (email: string, otp: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -77,12 +80,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { toast } = useToast();
   
   useEffect(() => {
-    const { auth, db } = getFirebaseServices();
+    const { auth } = getFirebaseServices();
     setLoading(true);
     
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      // Set loading to false only after the initial user check is complete
       if (loading) {
         setLoading(false);
       }
@@ -90,6 +92,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const handleRedirectResult = async () => {
       try {
+        const { auth, db } = getFirebaseServices();
         const result = await getRedirectResult(auth);
         if (result) {
           const googleUser = result.user;
@@ -108,8 +111,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           handleAuthSuccess("/");
         }
       } catch (error: any) {
-        // These errors are expected in some redirect scenarios, so we can ignore them.
-        if(error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment' && error.code !== 'auth/cancelled-popup-request') {
+        // Known issue with some browsers, can be ignored.
+        if (error.code === 'auth/unauthorized-domain') {
+            handleAuthError({ message: 'This domain is not authorized for authentication. Please contact support.'})
+        } else if(error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment' && error.code !== 'auth/cancelled-popup-request') {
             handleAuthError(error);
         }
       } finally {
@@ -125,7 +130,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', loggedInUser: FirebaseUser, db: Firestore) => {
+  const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'otp' | 'unknown', loggedInUser: FirebaseUser, db: Firestore) => {
     try {
       await addDoc(collection(db, "auth_logs"), {
         userId: loggedInUser.uid,
@@ -135,7 +140,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         timestamp: serverTimestamp(),
       });
     } catch (error) {
-      // It's not critical if logging fails, so we'll just log to console.
       console.error("Error logging auth event:", error);
     }
   };
@@ -190,8 +194,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const googleSignIn = async () => {
-    const { auth } = getFirebaseServices();
     setLoading(true);
+    const { auth } = getFirebaseServices();
     const provider = new GoogleAuthProvider();
     try {
       await signInWithRedirect(auth, provider);
@@ -200,6 +204,53 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setLoading(false);
     }
   };
+
+  const sendOtp = async (email: string) => {
+    setLoading(true);
+    try {
+        await sendOtpFlow({ email });
+        return true;
+    } catch (error) {
+        handleAuthError(error);
+        return false;
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const verifyOtp = async (email: string, otp: string) => {
+    setLoading(true);
+    const { auth, db } = getFirebaseServices();
+    try {
+        const { token } = await verifyOtpFlow({ email, otp });
+        if (token) {
+            const userCredential = await signInWithCustomToken(auth, token);
+            const otpUser = userCredential.user;
+            const userDocRef = doc(db, "users", otpUser.uid);
+            const userDoc = await getDoc(userDocRef);
+
+            if (!userDoc.exists()) {
+                // If user doesn't exist, create a new profile.
+                await setDoc(userDocRef, {
+                    uid: otpUser.uid,
+                    email: otpUser.email,
+                    displayName: otpUser.email?.split('@')[0],
+                    photoURL: null,
+                    createdAt: serverTimestamp(),
+                });
+            }
+            await logAuthEvent('login', 'otp', otpUser, db);
+            handleAuthSuccess('/');
+        } else {
+            throw new Error("Invalid OTP or expired token.");
+        }
+    } catch (error: any) {
+        handleAuthError(error);
+    } finally {
+        setLoading(false);
+    }
+  };
+
 
   const logout = async () => {
     const { auth, db } = getFirebaseServices();
@@ -221,9 +272,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signup,
     logout,
     googleSignIn,
+    sendOtp,
+    verifyOtp,
   };
 
-  if (loading) {
+  if (loading && !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <LoadingSpinner />
