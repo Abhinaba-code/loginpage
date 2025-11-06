@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -20,6 +21,7 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from "fireba
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -53,8 +55,13 @@ const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'googl
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -174,6 +181,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     logout,
     googleSignIn,
   };
+
+  if (!isClient) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
