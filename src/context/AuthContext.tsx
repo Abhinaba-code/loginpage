@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -38,6 +39,7 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase app singleton
+// This function ensures Firebase is initialized only once.
 function getFirebaseServices() {
   const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   const auth: Auth = getAuth(app);
@@ -77,9 +79,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     const { auth, db } = getFirebaseServices();
     setLoading(true);
+    
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      setLoading(false);
+      // Set loading to false only after the initial user check is complete
+      if (loading) {
+        setLoading(false);
+      }
     });
 
     const handleRedirectResult = async () => {
@@ -102,6 +108,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           handleAuthSuccess("/");
         }
       } catch (error: any) {
+        // These errors are expected in some redirect scenarios, so we can ignore them.
         if(error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment' && error.code !== 'auth/cancelled-popup-request') {
             handleAuthError(error);
         }
@@ -128,6 +135,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         timestamp: serverTimestamp(),
       });
     } catch (error) {
+      // It's not critical if logging fails, so we'll just log to console.
       console.error("Error logging auth event:", error);
     }
   };
