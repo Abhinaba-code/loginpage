@@ -108,7 +108,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             });
           }
           await logAuthEvent('login', 'google', googleUser, db);
-          handleAuthSuccess("/");
+          handleAuthSuccess("/dashboard");
         }
       } catch (error: any) {
         // Known issue with some browsers, can be ignored.
@@ -163,7 +163,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       await logAuthEvent('login', 'email', userCredential.user, db);
-      handleAuthSuccess("/");
+      handleAuthSuccess("/dashboard");
     } catch (error) {
       handleAuthError(error);
     } finally {
@@ -185,7 +185,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         createdAt: serverTimestamp(),
       });
       await logAuthEvent('login', 'email', newUser, db);
-      handleAuthSuccess("/");
+      handleAuthSuccess("/dashboard");
     } catch (error) {
       handleAuthError(error);
     } finally {
@@ -240,7 +240,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 });
             }
             await logAuthEvent('login', 'otp', otpUser, db);
-            handleAuthSuccess('/');
+            handleAuthSuccess('/dashboard');
         } else {
             throw new Error("Invalid OTP or expired token.");
         }
@@ -275,14 +275,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     sendOtp,
     verifyOtp,
   };
-
-  if (loading && !user) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
