@@ -208,7 +208,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setLoading(true);
     try {
         const result = await sendOtpFlow({ email });
-        if (result.success) {
+        if (result.success && result.otp) {
           toast({
             title: "OTP Sent (Dev Mode)",
             description: `Your one-time password is: ${result.otp}`,
@@ -281,14 +281,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     sendOtp,
     verifyOtp,
   };
-
-  if (loading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
