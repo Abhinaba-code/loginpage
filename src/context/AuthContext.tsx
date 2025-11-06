@@ -16,7 +16,7 @@ import {
   signInWithRedirect,
   getRedirectResult,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +35,20 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 interface AuthProviderProps {
   children: ReactNode;
 }
+
+const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', user: FirebaseUser) => {
+  try {
+    await addDoc(collection(db, "auth_logs"), {
+      userId: user.uid,
+      email: user.email,
+      action,
+      method,
+      timestamp: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error logging auth event:", error);
+  }
+};
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -63,6 +77,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               createdAt: serverTimestamp(),
             });
           }
+          await logAuthEvent('login', 'google', googleUser);
           handleAuthSuccess("/");
         }
       })
@@ -94,7 +109,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const login = async (email: string, pass: string) => {
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email, pass);
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      await logAuthEvent('login', 'email', userCredential.user);
       handleAuthSuccess("/");
     } catch (error) {
       handleAuthError(error);
@@ -115,6 +131,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         photoURL: null,
         createdAt: serverTimestamp(),
       });
+      await logAuthEvent('login', 'email', newUser);
       handleAuthSuccess("/");
     } catch (error) {
       handleAuthError(error);
@@ -136,6 +153,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const logout = async () => {
     try {
+      if (auth.currentUser) {
+        await logAuthEvent('logout', 'unknown', auth.currentUser);
+      }
       await signOut(auth);
       router.push("/login");
     } catch (error) {
