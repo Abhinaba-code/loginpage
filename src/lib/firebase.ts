@@ -5,13 +5,13 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCp7-xal4Uc77Men4tKoNLYeHUDL-Z1dKc",
-  authDomain: "authflow-6006b.firebaseapp.com",
-  projectId: "authflow-6006b",
-  storageBucket: "authflow-6006b.appspot.com",
-  messagingSenderId: "444782156299",
-  appId: "1:444782156299:web:b8b2900f39da8199ce450e",
-  measurementId: "G-QDB7F6YXJ2"
+  apiKey: "AIzaSyAz_1fTqZ2m2dO824t_wn1GUnrA6l9R4A4",
+  authDomain: "dev-prototyper-240530.firebaseapp.com",
+  projectId: "dev-prototyper-240530",
+  storageBucket: "dev-prototyper-240530.appspot.com",
+  messagingSenderId: "420339591461",
+  appId: "1:420339591461:web:1e3f32454239849206c9a3",
+  measurementId: "G-Q81P4B411L"
 };
 
 // Initialize Firebase for SSR and client-side
