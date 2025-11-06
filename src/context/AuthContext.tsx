@@ -18,7 +18,7 @@ import {
   getRedirectResult,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, collection, addDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { useFirebase } from "@/context/FirebaseProvider";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -38,21 +38,8 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', user: FirebaseUser) => {
-  try {
-    await addDoc(collection(db, "auth_logs"), {
-      userId: user.uid,
-      email: user.email,
-      action,
-      method,
-      timestamp: serverTimestamp(),
-    });
-  } catch (error) {
-    console.error("Error logging auth event:", error);
-  }
-};
-
 export const AuthProvider = ({ children }: AuthProviderProps) => {
+  const { auth, db } = useFirebase();
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
@@ -62,6 +49,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  const logAuthEvent = async (action: 'login' | 'logout', method: 'email' | 'google' | 'unknown', user: FirebaseUser) => {
+    try {
+      await addDoc(collection(db, "auth_logs"), {
+        userId: user.uid,
+        email: user.email,
+        action,
+        method,
+        timestamp: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Error logging auth event:", error);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -89,7 +90,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           handleAuthSuccess("/");
         }
       } catch (error: any) {
-        // Ignore non-blocking errors, but log and toast others
         if(error.code !== 'auth/web-storage-unsupported' && error.code !== 'auth/operation-not-supported-in-this-environment' && error.code !== 'auth/cancelled-popup-request') {
             handleAuthError(error);
         }
@@ -101,7 +101,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     handleRedirectResult();
 
     return () => unsubscribe();
-  }, []);
+  }, [auth, db]);
 
   const handleAuthSuccess = (path: string) => {
     router.push(path);
@@ -182,7 +182,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     googleSignIn,
   };
 
-  if (!isClient) {
+  if (!isClient || loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <LoadingSpinner />
