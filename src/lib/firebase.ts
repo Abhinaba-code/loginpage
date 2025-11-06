@@ -1,15 +1,17 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getAnalytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDk-example",
-  authDomain: "yourapp.firebaseapp.com",
-  projectId: "yourapp",
-  storageBucket: "yourapp.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456"
+  apiKey: "AIzaSyCp7-xal4Uc77Men4tKoNLYeHUDL-Z1dKc",
+  authDomain: "authflow-6006b.firebaseapp.com",
+  projectId: "authflow-6006b",
+  storageBucket: "authflow-6006b.appspot.com",
+  messagingSenderId: "444782156299",
+  appId: "1:444782156299:web:b8b2900f39da8199ce450e",
+  measurementId: "G-QDB7F6YXJ2"
 };
 
 // Initialize Firebase
@@ -17,5 +19,14 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Initialize Firebase Analytics
+if (typeof window !== 'undefined') {
+  isSupported().then((supported) => {
+    if (supported) {
+      getAnalytics(app);
+    }
+  });
+}
 
 export { app, auth, db };
